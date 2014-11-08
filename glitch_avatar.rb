@@ -25,7 +25,7 @@ begin
 rescue
   puts "You must have an oauth.yml file with consumer_key, consumer_secret, token & token_secret"
 end
- 
+
 #Quick and dirty method for determining mime type of uploaded file
 def mime_type(file)
   case 
@@ -35,7 +35,7 @@ def mime_type(file)
     else 'application/octet-stream'
   end
 end
- 
+
 #Encodes the request as multipart
 def add_multipart_data(req,params)
   boundary = Time.now.to_i.to_s(16)
@@ -57,16 +57,17 @@ def add_multipart_data(req,params)
   req.body = body
   req["Content-Length"] = req.body.size
 end
- 
+
 #Uses the OAuth gem to add the signed Authorization header
 def add_oauth(req,auth)
   consumer = OAuth::Consumer.new(
-    auth[:consumer_key],auth[:consumer_secret],{:site=>'http://api.twitter.com/1.1'}
+    auth[:consumer_key],
+    auth[:consumer_secret],
+    {:site=>'https://api.twitter.com/1.1'}
   )
   access_token = OAuth::AccessToken.new(consumer,auth[:token],auth[:token_secret])
   consumer.sign!(req,access_token)
 end
- 
 
 # Set a random byte in the line to 0
 def mutate_line(line)
@@ -90,11 +91,14 @@ mutate_file
 image_file = File.new(OUTPUT_FILE)
 
 #Actually do the request and print out the response
-url = URI.parse('http://api.twitter.com/1.1/account/update_profile_image.json')
-Net::HTTP.new(url.host, url.port).start do |http| 
-  req = Net::HTTP::Post.new(url.request_uri)
-  add_multipart_data(req,:image=>image_file)
-  add_oauth(req,oauth_config)
-  res = http.request(req)
-  puts res.body
-end
+url = URI.parse('https://api.twitter.com/1.1/account/update_profile_image.json')
+
+http = Net::HTTP.new(url.host, url.port)
+http.use_ssl = true
+http.verify_mode = OpenSSL::SSL::VERIFY_NONE # note: DANGEROUS
+
+req = Net::HTTP::Post.new(url.request_uri)
+add_multipart_data(req,:image=>image_file)
+add_oauth(req,oauth_config)
+res = http.request(req)
+puts res.body
