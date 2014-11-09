@@ -18,12 +18,14 @@ INPUT_FILE = 'input.jpg'
 OUTPUT_FILE = 'output.jpg' 
 
 
-begin
-  oauth_config = YAML.load(IO.read('oauth.yml'))
-  #Make sure oauth_config contains symbol keys
-  oauth_config.replace(oauth_config.inject({}) {|h, (key,value)| h[key.to_sym] = value; h})
-rescue
-  puts "You must have an oauth.yml file with consumer_key, consumer_secret, token & token_secret"
+def load_config
+  begin
+    @oauth_config = YAML.load(IO.read('oauth.yml'))
+    #Make sure oauth_config contains symbol keys
+    @oauth_config.replace(@oauth_config.inject({}) {|h, (key,value)| h[key.to_sym] = value; h})
+  rescue
+    puts "You must have an oauth.yml file with consumer_key, consumer_secret, token & token_secret"
+  end
 end
 
 #Quick and dirty method for determining mime type of uploaded file
@@ -86,8 +88,22 @@ def mutate_file
   end
 end
 
+def image_is_similar
+  # exit code is 1, so result is in STDERR
+  result = `compare -metric RMSE input.jpg output.jpg NULL: 2>&1`
+  difference = result.scan(/\((.*)\)$/)[0]
+  return unless difference
+  puts difference
+  difference[0].to_f < 0.18
+end
 
-mutate_file
+
+load_config
+loop do
+  mutate_file
+  break if image_is_similar
+end
+
 image_file = File.new(OUTPUT_FILE)
 
 #Actually do the request and print out the response
@@ -99,6 +115,6 @@ http.verify_mode = OpenSSL::SSL::VERIFY_NONE # note: DANGEROUS
 
 req = Net::HTTP::Post.new(url.request_uri)
 add_multipart_data(req,:image=>image_file)
-add_oauth(req,oauth_config)
+add_oauth(req, @oauth_config)
 res = http.request(req)
 puts res.body
